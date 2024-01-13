@@ -164,4 +164,16 @@ func sub(self, other) {
     return self.dec().sub(other.dec());
 }
 
-"15".sub("13").print();
+func repeat(self, times) {
+    if times.eq(empty) {
+        return empty;
+    }
+
+    if times.eq("0") {
+        return empty;
+    }
+
+    return self.cat(self.repeat(times.dec()));
+}
+
+"15".sub("13").cat(".. ").repeat("5").print();
