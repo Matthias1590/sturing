@@ -1,6 +1,7 @@
 from __future__ import annotations
 import warnings
 import rply
+import os
 
 warnings.filterwarnings("ignore")
 
@@ -40,6 +41,9 @@ pg = rply.ParserGenerator(TOKENS.keys(), cache_id="sturing")
 def _(ts):
     return Program(ts[0])
 
+def stringify(value: str) -> str:
+    return '"' + repr("'" + value)[2:]
+
 def assert_str(value: str) -> None:
     if not isinstance(value, str):
         raise Exception(f"expected string, got {type(value).__name__!r}")
@@ -60,11 +64,82 @@ class Program(Debug):
     def __init__(self, tops: list[any]) -> None:
         self.tops = tops
     
+    def compile(self) -> Ctx:
+        ctx = Ctx()
+
+        # declare funcs
+        for top in self.tops:
+            if isinstance(top, Var):
+                continue
+            
+            top.declare(ctx)
+
+        # declare vars
+        for top in self.tops:
+            if not isinstance(top, Var):
+                continue
+            
+            top.declare(ctx)
+
+        # define vars
+        for top in self.tops:
+            if not isinstance(top, Var):
+                continue
+
+            top.define(ctx)
+
+        # define funcs
+        for top in self.tops:
+            if isinstance(top, Var):
+                continue
+        
+            val = top.define(ctx)
+            if val:
+                ctx.main.append(val + ";")
+
+        for top in self.tops:
+            top.check(ctx)
+        
+        return ctx
+
     def eval(self) -> None:
         scope = Scope()
 
         for top in self.tops:
             top.eval(scope)
+
+class Type:
+    STRING = "STRING"
+    FUNC = "FUNC"
+
+class Ctx(Debug):
+    def __init__(self) -> None:
+        self.scope = Scope()
+        self.code = []
+        self.main = []
+    
+    def emit(self, line: str) -> None:
+        self.code.append(line)
+
+    def declare(self, name: str, type: Type) -> None:
+        self.scope.declare(name)
+        self.scope.set(name, type)
+    
+    def compile(self, path: str) -> None:
+        with open("out.c", "w") as f:
+            f.write("#include \"std.h\"\n")
+            f.write("\n")
+            f.write("\n".join(self.code) + "\n")
+            f.write("\n")
+            f.write("int main(void)\n")
+            f.write("{\n")
+            f.write("\n".join(self.main) + "\n")
+            f.write("return 0;\n")
+            f.write("}\n")
+        
+        if os.system(f"gcc -o {path} out.c std.c") != 0:
+            raise Exception("failed to compile")
+
 
 class Scope(Debug):
     def __init__(self, parent: Scope | None = None) -> None:
@@ -116,6 +191,23 @@ class Func(Debug):
     def eval(self, scope: Scope) -> None:
         scope.declare(self.name)
         scope.set(self.name, self)
+    
+    def emit_sig(self, ctx: Ctx, include_semi: bool = False) -> None:
+        ctx.emit(f"str usr_{self.name}({', '.join(f'str usr_{param}' for param in self.params)}){';' if include_semi else ''}")
+
+    def declare(self, ctx: Ctx) -> None:
+        ctx.declare(self.name, Type.FUNC)
+        self.emit_sig(ctx, True)
+
+    def check(self, ctx: Ctx, expect: Type | None = None) -> None:
+        assert expect == None or expect == Type.FUNC
+
+    def define(self, ctx: Ctx) -> None:
+        self.emit_sig(ctx)
+        ctx.emit("{")
+        self.body.define(ctx)
+        ctx.emit('return str_new("");')
+        ctx.emit("}")
 
     def call(self, scope: Scope, this: Expr, args: list[Expr]) -> any:
         child = scope.child()
@@ -221,6 +313,10 @@ class Block(Debug):
 
         return ""
 
+    def define(self, ctx: Ctx) -> None:
+        for stmt in self.stmts:
+            stmt.define(ctx)
+        
 @pg.production("args : args COMMA arg")
 def _(ts):
     return ts[0] + [ts[2]]
@@ -262,6 +358,12 @@ class If(Debug):
         if self.cond.eval(scope) == "true":
             return self.body.eval(scope)
 
+    def define(self, ctx: Ctx) -> None:
+        ctx.emit(f'if (str_eq({self.cond.define(ctx)}, str_new("true")))')
+        ctx.emit("{")
+        self.body.define(ctx)
+        ctx.emit("}")
+
 @pg.production("expr : parexp | call | str | ident")
 def _(ts):
     return ts[0]
@@ -278,6 +380,9 @@ class Ident(Debug):
         var = scope.get(self.value)
         assert_str(var)
         return var
+
+    def define(self, ctx: Ctx) -> str:
+        return f"usr_{self.value}"
 
     def debug_str(self) -> str:
         return self.value
@@ -301,6 +406,15 @@ class Call(Debug):
         assert_func(func)
         return func.call(scope, self.expr, self.args)
 
+    def declare(self, ctx: Ctx) -> None:
+        pass
+
+    def define(self, ctx: Ctx) -> str:
+        return f"usr_{self.func}({self.expr.define(ctx)}{', ' if self.args else ''}{', '.join(arg.define(ctx) for arg in self.args)})"
+
+    def check(self, ctx: Ctx, expect: Type | None = None) -> None:
+        return expect == Type.STRING
+
     def assert_str(self) -> None:
         pass
 
@@ -318,6 +432,12 @@ class String(Debug):
     
     def eval(self, scope: Scope) -> str:
         return self.value
+
+    def check(self, ctx: Ctx, expect: Type | None = None) -> None:
+        assert expect == Type.STRING
+
+    def define(self, ctx: Ctx) -> str:
+        return f"str_new({stringify(self.value)})"
 
     def assert_str(self) -> None:
         pass
@@ -352,6 +472,9 @@ class Return(Debug):
         assert_str(value)
         return value
 
+    def define(self, ctx: Ctx) -> None:
+        ctx.emit(f"return {self.value.define(ctx)};")
+
 @pg.production("var : VAR IDENT EQ expr")
 def _(ts):
     return Var(ts[1].getstr(), ts[3])
@@ -364,6 +487,18 @@ class Var(Debug):
     def eval(self, scope: Scope) -> None:
         scope.declare(self.name)
         scope.set(self.name, self.value.eval(scope))
+    
+    def declare(self, ctx: Ctx) -> None:
+        ctx.declare(self.name, Type.STRING)
+
+    def define(self, ctx: Ctx) -> None:
+        ctx.emit(f"str usr_{self.name};")
+        ctx.main.append(f"usr_{self.name} = {self.value.define(ctx)};")
+
+    def check(self, ctx: Ctx, expect: Type | None = None) -> None:
+        assert expect == None
+
+        self.value.check(ctx, Type.STRING)
 
 class Expr:
     ...
@@ -372,4 +507,6 @@ parser = pg.build()
 
 program = parser.parse(lexer.lex(source))
 
-program.eval()
+ctx = program.compile()
+
+ctx.compile("out.exe")

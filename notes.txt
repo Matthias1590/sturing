@@ -1,4 +1,5 @@
 primitives:
+- eq
 - cat
 - tail
 - head
