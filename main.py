@@ -32,6 +32,7 @@ for name, pattern in TOKENS.items():
     lg.add(name, pattern)
 
 lg.ignore(r"\s+")
+lg.ignore(r"\/\/[^\n]*")
 
 lexer = lg.build()
 
@@ -86,7 +87,7 @@ class Program(Debug):
             if not isinstance(top, Var):
                 continue
 
-            top.define(ctx)
+            top.define(ctx, True)
 
         # define funcs
         for top in self.tops:
@@ -315,8 +316,10 @@ class Block(Debug):
 
     def define(self, ctx: Ctx) -> None:
         for stmt in self.stmts:
-            stmt.define(ctx)
-        
+            val = stmt.define(ctx)
+            if val:
+                ctx.emit(val + ";")
+
 @pg.production("args : args COMMA arg")
 def _(ts):
     return ts[0] + [ts[2]]
@@ -491,9 +494,12 @@ class Var(Debug):
     def declare(self, ctx: Ctx) -> None:
         ctx.declare(self.name, Type.STRING)
 
-    def define(self, ctx: Ctx) -> None:
-        ctx.emit(f"str usr_{self.name};")
-        ctx.main.append(f"usr_{self.name} = {self.value.define(ctx)};")
+    def define(self, ctx: Ctx, top: bool = False) -> None:
+        if top:
+            ctx.emit(f"str usr_{self.name};")
+            ctx.main.append(f"usr_{self.name} = {self.value.define(ctx)};")
+        else:
+            ctx.emit(f"str usr_{self.name} = {self.value.define(ctx)};")
 
     def check(self, ctx: Ctx, expect: Type | None = None) -> None:
         assert expect == None

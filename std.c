@@ -35,10 +35,10 @@ str usr_head(str string) {
         return string;
     }
 
-    string = str_copy(string);
-    string.chars[strlen(string.chars) - 1] = '\0';
+    str copy = str_copy(string);
+    copy.chars[strlen(copy.chars) - 1] = '\0';
 
-    return string;
+    return copy;
 }
 
 str usr_cat(str string_a, str string_b) {
