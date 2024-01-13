@@ -1,0 +1,16 @@
+primitives:
+- cat
+- tail
+- head
+- print
+
+keywords:
+- var
+- func
+- return
+- if
+- else (doesnt work)
+
+todo:
+- assigning vars after declaration
+- implement else & else if

@@ -1,0 +1,167 @@
+var true = "true";
+var false = "false";
+var empty = "";
+
+func and(self, other) {
+    if self {
+        return other;
+    }
+    return false;
+}
+
+func or(self, other) {
+    if self.eq(empty) {
+        return empty;
+    }
+    if other.eq(empty) {
+        return empty;
+    }
+
+    if self {
+        return true;
+    }
+    if other {
+        return true;
+    }
+    return false;
+}
+
+func last(self) {
+    if self.eq(empty) {
+        return empty;
+    }
+
+    if self.tail().eq(empty) {
+        return self;
+    }
+
+    return self.tail().last();
+}
+
+func first(self) {
+    if self.eq(empty) {
+        return empty;
+    }
+
+    if self.len().eq("1") {
+        return self;
+    }
+
+    return self.head().first();
+}
+
+func len(self) {
+    if self.eq(empty) {
+        return "0";
+    }
+
+    return self.tail().len().inc();
+}
+
+func trim_num(self) {
+    if self.first().eq("0") {
+        return self.tail();
+    }
+
+    return self;
+}
+
+func inc(self) {
+    if self.eq(empty) {
+        return empty;
+    }
+
+    if self.last().eq("0") {
+        return self.head().cat("1");
+    }
+    if self.last().eq("1") {
+        return self.head().cat("2");
+    }
+    if self.last().eq("2") {
+        return self.head().cat("3");
+    }
+    if self.last().eq("3") {
+        return self.head().cat("4");
+    }
+    if self.last().eq("4") {
+        return self.head().cat("5");
+    }
+    if self.last().eq("5") {
+        return self.head().cat("6");
+    }
+    if self.last().eq("6") {
+        return self.head().cat("7");
+    }
+    if self.last().eq("7") {
+        return self.head().cat("8");
+    }
+    if self.last().eq("8") {
+        return self.head().cat("9");
+    }
+    if self.last().eq("9") {
+        return self.head().inc().cat("0");
+    }
+}
+
+func dec(self) {
+    if self.eq(empty) {
+        return empty;
+    }
+
+    if self.last().eq("9") {
+        return self.head().cat("8");
+    }
+    if self.last().eq("8") {
+        return self.head().cat("7");
+    }
+    if self.last().eq("7") {
+        return self.head().cat("6");
+    }
+    if self.last().eq("6") {
+        return self.head().cat("5");
+    }
+    if self.last().eq("5") {
+        return self.head().cat("4");
+    }
+    if self.last().eq("4") {
+        return self.head().cat("3");
+    }
+    if self.last().eq("3") {
+        return self.head().cat("2");
+    }
+    if self.last().eq("2") {
+        return self.head().cat("1");
+    }
+    if self.last().eq("1") {
+        return self.head().cat("0");
+    }
+    if self.last().eq("0") {
+        return self.head().dec().cat("9").trim_num();
+    }
+}
+
+func add(self, other) {
+    if self.eq(empty).or(other.eq(empty)) {
+        return empty;
+    }
+
+    if other.eq("0") {
+        return self;
+    }
+
+    return self.inc().add(other.dec());
+}
+
+func sub(self, other) {
+    if self.eq(empty).or(other.eq(empty)) {
+        return empty;
+    }
+
+    if other.eq("0") {
+        return self;
+    }
+
+    return self.dec().sub(other.dec());
+}
+
+"15".sub("13").print();
