@@ -300,7 +300,7 @@ def _(ts):
     return Block(ts[1])
 
 class Block(Debug):
-    def __init__(self, stmts: list[Stmt]) -> None:
+    def __init__(self, stmts: list[any]) -> None:
         self.stmts = stmts
     
     def eval(self, scope: Scope, create_scope: bool = True) -> any:
